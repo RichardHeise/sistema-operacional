@@ -198,7 +198,7 @@ int main (int argc, char **argv, char **envp)
    while (i<N)
    {
       aux = fila0->prev ;
-      printf("teste: %d\n",queue_remove ((queue_t**) &fila0, (queue_t*) aux)) ;
+      queue_remove ((queue_t**) &fila0, (queue_t*) aux);
       assert (fila_correta (fila0)) ;  // estrutura continua correta
       assert (aux->id+i == N-1) ;        // testa ordem do elemento removido
       assert (aux->prev == NULL) ;       // testa elemento removido

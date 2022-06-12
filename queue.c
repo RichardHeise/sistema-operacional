@@ -59,16 +59,18 @@ int queue_remove (queue_t **queue, queue_t *elem) {
         q_aux = q_aux->next;
     }
 
-    if (i == size) return -3;
+    if (i == 1) {
+        (*queue) = q_aux->next;
+    }
 
     q_aux->next->prev = q_aux->prev;
     q_aux->prev->next = q_aux->next;
     q_aux->next = NULL;
     q_aux->prev = NULL;
-    if (i == 1) {
-        (*queue) = q_aux;
+    
+    if (size == 1) {
+        (*queue) = NULL;
     }
-
 
     return 0;
 }
