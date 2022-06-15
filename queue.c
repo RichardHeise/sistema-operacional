@@ -27,6 +27,8 @@ int queue_append (queue_t **queue, queue_t *elem) {
         return -2;
     }
 
+    if (elem->next || elem->prev) return -3;
+
     if ( !(*queue) ) {
         (*queue) = elem;
         elem->next = (*queue);
@@ -49,28 +51,30 @@ int queue_append (queue_t **queue, queue_t *elem) {
 }
 
 int queue_remove (queue_t **queue, queue_t *elem) {
-    int size = queue_size( (*queue) );
-    if (!size) return -1;
+    if (!(*queue)) return -1;
     if (!elem) return -2;
 
     queue_t* q_aux = (*queue);
-    int i;
-    for (i = 1; (i <= size) && (q_aux != elem); i++) {
-        q_aux = q_aux->next;
-    }
 
-    if (i == 1) {
-        (*queue) = q_aux->next;
-    }
+    if (q_aux == elem) {
 
+        if (q_aux == q_aux->next) 
+            (*queue) = NULL;    
+        else 
+            (*queue) = q_aux->next;
+     
+    } else {
+        do 
+            q_aux = q_aux->next;
+        while (q_aux != elem && q_aux != (*queue));
+
+        if (q_aux != elem) return -3;
+    }
+    
     q_aux->next->prev = q_aux->prev;
     q_aux->prev->next = q_aux->next;
     q_aux->next = NULL;
     q_aux->prev = NULL;
-    
-    if (size == 1) {
-        (*queue) = NULL;
-    }
 
     return 0;
 }
