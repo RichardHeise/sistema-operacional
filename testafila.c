@@ -121,8 +121,6 @@ int main (int argc, char **argv, char **envp)
    // Teste: inserir N elemementos na fila e verificar a estrutura
    printf ("Testando insercao de %d elementos...\n", N) ;
    fila0 = NULL ;
-
-
    for (i=0; i<N; i++)
    {
       assert (queue_size ((queue_t*) fila0) == i) ;
@@ -198,7 +196,7 @@ int main (int argc, char **argv, char **envp)
    while (i<N)
    {
       aux = fila0->prev ;
-      queue_remove ((queue_t**) &fila0, (queue_t*) aux);
+      queue_remove ((queue_t**) &fila0, (queue_t*) aux) ;
       assert (fila_correta (fila0)) ;  // estrutura continua correta
       assert (aux->id+i == N-1) ;        // testa ordem do elemento removido
       assert (aux->prev == NULL) ;       // testa elemento removido

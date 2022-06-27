@@ -1,6 +1,4 @@
-// PingPongOS - PingPong Operating System
-// Aluno Richard Fernando Heise Ferreira - GRR20191053
-// Implementações de uma fila genérica.
+// GRR20191053 Richard Fernando Heise Ferreira 
 
 #include "queue.h"
 #include <stdio.h>
@@ -40,8 +38,8 @@ void queue_print (char *name, queue_t *queue, void print_elem (void*) ) {
         print_elem(q_aux);
         q_aux = q_aux->next;
 
-        // se n estamos no ultimo elemento damos um espaço entre os prints
-        if (q_aux != queue)  
+        // se nao estamos no ultimo elemento damos um espaço entre os prints
+        if (q_aux != queue)
             printf(" ");
         else 
             break;
@@ -59,7 +57,7 @@ int queue_append (queue_t **queue, queue_t *elem) {
     // elemento deve ser isolado, isto é, não pode apontar para outros elementos
     if (elem->next || elem->prev) return ERRO_ELEMENTO_NAO_ISOLADO;
 
-    // se a fila é vaiza, simplesmente fazemos o início apontar para o elemento
+    // se a fila é vazia, simplesmente fazemos o início apontar para o elemento
     if ( !(*queue) ) {
         (*queue) = elem;
         elem->next = (*queue);
