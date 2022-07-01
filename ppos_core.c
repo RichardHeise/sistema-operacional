@@ -5,10 +5,60 @@
 #include "ppos.h"
 #include "queue.h"
 #define STACKSIZE 64*1024
+#define ERROR_STATUS -5
 
-task_t* _currTask, _mainTask;
+enum status_t {PRONTA = 1, RODANDO, SUSPENSA, TERMINADA};
+
+task_t* _currTask = NULL;
+task_t _mainTask;
 int _id = 0;
-queue_t* tasks = NULL;
+int userTasks = 0;
+task_t task_dispatcher;
+task_t* tasks;
+
+task_t* scheduler() {
+    _currTask = tasks->next;
+    tasks = tasks->next;
+    return _currTask;
+}
+
+void dispatcher () {
+
+    task_t* next_task = NULL;
+    // enquanto houverem tarefas de usuário
+    while ( userTasks-- ) {
+
+        // escolhe a próxima tarefa a executar
+        next_task = scheduler();
+
+        // escalonador escolheu uma tarefa?      
+        if (next_task) {
+
+            // transfere controle para a próxima tarefa
+            task_switch (next_task);
+         
+            // voltando ao dispatcher, trata a tarefa de acordo com seu estado
+            switch (next_task->status) {
+                case PRONTA:
+                    break;
+                case RODANDO:
+                    break;
+                case SUSPENSA:
+                    break;
+                case TERMINADA:
+                    break;
+                default:
+                    fprintf(stderr, "Status da tarefa %d não abarcado, abortando.\n", next_task->id);
+                    exit(0);
+            }         
+
+        }
+
+    }
+
+   // encerra a tarefa dispatcher
+   task_exit(0);
+}
 
 void ppos_init () {
 
@@ -24,6 +74,8 @@ void ppos_init () {
 
     // Atual é a main
     _currTask = &_mainTask;
+
+    task_create(&task_dispatcher, dispatcher, NULL);
 
     /* desativa o buffer da saida padrao (stdout), usado pela função printf */
     setvbuf (stdout, 0, _IONBF, 0) ;
@@ -59,6 +111,9 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 
     makecontext (&task->context, (void*)start_func, 1, arg) ;
 
+    queue_append( (queue_t **)&tasks, (queue_t *) task);
+
+    userTasks += 1;
     return task->id;
 }
 
@@ -80,4 +135,8 @@ void task_exit (int exit_code) {
 
 int task_id () {
     return _currTask->id;
+}
+
+void task_yield () {
+    task_switch(&task_dispatcher);
 }

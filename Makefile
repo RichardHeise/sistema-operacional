@@ -4,7 +4,10 @@ CFLAGS  = -Wall -g
 CC = gcc 
 
 #-----------------------------------------------------------------------------#
-all : pingpong-tasks2
+all : pingpong-dispatcher
+
+run: pingpong-dispatcher
+	./pingpong-dispatcher
 
 runPP3: pingpong-tasks3 
 	./pingpong-tasks3 > minha_saida3.txt
@@ -12,6 +15,7 @@ runPP3: pingpong-tasks3
 runPP2: pingpong-tasks2
 	./pingpong-tasks2 > minha_saida2.txt
 
+pingpong-dispatcher : ppos_core.o queue.o
 pingpong-tasks2 : ppos_core.o
 pingpong-tasks3 : ppos_core.o 
 teste1 : queue.o ppos_core.o
@@ -27,4 +31,4 @@ clean :
 #-----------------------------------------------------------------------------#
 
 purge:
-	$(RM) contexts testafila teste1 *.o
+	$(RM) pingpong-dispatcher pingpong-tasks2 pingpong-tasks3 contexts testafila teste1 *.o
