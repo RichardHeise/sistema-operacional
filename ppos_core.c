@@ -17,16 +17,15 @@ task_t task_dispatcher;
 task_t* tasks;
 
 task_t* scheduler() {
-    _currTask = tasks->next;
     tasks = tasks->next;
-    return _currTask;
+    return tasks;
 }
 
 void dispatcher () {
 
     task_t* next_task = NULL;
     // enquanto houverem tarefas de usuário
-    while ( userTasks-- ) {
+    while ( userTasks != 1 ) {
 
         // escolhe a próxima tarefa a executar
         next_task = scheduler();
@@ -36,7 +35,7 @@ void dispatcher () {
 
             // transfere controle para a próxima tarefa
             task_switch (next_task);
-         
+
             // voltando ao dispatcher, trata a tarefa de acordo com seu estado
             switch (next_task->status) {
                 case PRONTA:
@@ -46,6 +45,8 @@ void dispatcher () {
                 case SUSPENSA:
                     break;
                 case TERMINADA:
+                    userTasks -= 1;
+                    queue_remove( (queue_t **) &tasks, (queue_t *)&_currTask );
                     break;
                 default:
                     fprintf(stderr, "Status da tarefa %d não abarcado, abortando.\n", next_task->id);
@@ -130,7 +131,11 @@ int task_switch (task_t *task) {
 }
 
 void task_exit (int exit_code) {
-    task_switch(&_mainTask);
+    _currTask->status = TERMINADA;
+    if ( &task_dispatcher == _currTask ) {
+        task_switch(&_mainTask);
+    }
+    task_yield();
 }
 
 int task_id () {
