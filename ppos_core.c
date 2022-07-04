@@ -12,7 +12,7 @@ enum status_t {PRONTA = 1, RODANDO, SUSPENSA, TERMINADA};
 task_t* _currTask = NULL;
 task_t _mainTask;
 int _id = 0;
-int userTasks = 0;
+int userTasks = -1;
 task_t task_dispatcher;
 task_t* tasks;
 
@@ -25,7 +25,7 @@ void dispatcher () {
 
     task_t* next_task = NULL;
     // enquanto houverem tarefas de usuário
-    while ( userTasks != 1 ) {
+    while ( userTasks ) {
 
         // escolhe a próxima tarefa a executar
         next_task = scheduler();
@@ -45,7 +45,7 @@ void dispatcher () {
                 case SUSPENSA:
                     break;
                 case TERMINADA:
-                    userTasks -= 1;
+                    --userTasks;
                     queue_remove( (queue_t **) &tasks, (queue_t *)&_currTask );
                     break;
                 default:
@@ -63,14 +63,15 @@ void dispatcher () {
 
 void ppos_init () {
 
-    // Redundante, porém escolhi manter consistência
-    // não criamos uma stack porque a main já possui uma
-    // afinal ela é uma task
     _mainTask.prev = NULL;
     _mainTask.next = NULL;
     _mainTask.preemptable = 0;
     _mainTask.status = 1;
     _mainTask.id = 0;
+    
+    // Redundante, porém escolhi manter consistência
+    // não criamos uma stack porque a main já possui uma
+    // afinal ela é uma task
     getcontext(&_mainTask.context);
 
     // Atual é a main
@@ -134,8 +135,9 @@ void task_exit (int exit_code) {
     _currTask->status = TERMINADA;
     if ( &task_dispatcher == _currTask ) {
         task_switch(&_mainTask);
+    } else {
+        task_yield();
     }
-    task_yield();
 }
 
 int task_id () {
