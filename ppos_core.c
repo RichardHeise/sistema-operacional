@@ -17,8 +17,9 @@ task_t task_dispatcher;
 task_t* tasks;
 
 task_t* scheduler() {
+    task_t* oldTask = tasks;
     tasks = tasks->next;
-    return tasks;
+    return oldTask;
 }
 
 void dispatcher () {
