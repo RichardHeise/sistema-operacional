@@ -12,7 +12,7 @@ enum status_t {PRONTA = 1, RODANDO, SUSPENSA, TERMINADA};
 task_t* _currTask = NULL;
 task_t _mainTask;
 int _id = 0;
-int userTasks = -1;
+int userTasks = 0;
 task_t task_dispatcher;
 task_t* tasks;
 
@@ -66,18 +66,24 @@ void ppos_init () {
     _mainTask.prev = NULL;
     _mainTask.next = NULL;
     _mainTask.preemptable = 0;
-    _mainTask.status = 1;
+    _mainTask.status = RODANDO;
     _mainTask.id = 0;
     
     // Redundante, porém escolhi manter consistência
+    getcontext(&_mainTask.context);
+
     // não criamos uma stack porque a main já possui uma
     // afinal ela é uma task
-    getcontext(&_mainTask.context);
 
     // Atual é a main
     _currTask = &_mainTask;
 
     task_create(&task_dispatcher, dispatcher, NULL);
+
+    task_dispatcher.status = RODANDO;
+    task_dispatcher.preemptable = 0;
+    queue_remove( (queue_t **) &tasks, (queue_t *) &task_dispatcher);
+    --userTasks;
 
     /* desativa o buffer da saida padrao (stdout), usado pela função printf */
     setvbuf (stdout, 0, _IONBF, 0) ;
@@ -89,7 +95,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     task->prev = NULL;
     task->next = NULL;
     task->preemptable = 1;
-    task->status = 1;
+    task->status = PRONTA;
     task->id = ++_id;
 
     // alocamos uma pilha para a task
@@ -126,6 +132,7 @@ int task_switch (task_t *task) {
 
     ucontext_t* oldTask = &_currTask->context;
     _currTask = task;
+    _currTask->status = RODANDO;
     swapcontext(oldTask, &task->context);
 
     return 0;
@@ -133,6 +140,7 @@ int task_switch (task_t *task) {
 
 void task_exit (int exit_code) {
     _currTask->status = TERMINADA;
+
     if ( &task_dispatcher == _currTask ) {
         task_switch(&_mainTask);
     } else {
