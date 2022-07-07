@@ -47,7 +47,7 @@ void dispatcher () {
                     break;
                 case TERMINADA:
                     --userTasks;
-                    queue_remove( (queue_t **) &tasks, (queue_t *)&_currTask );
+                    queue_remove( (queue_t **) &tasks, (queue_t *)next_task );
                     break;
                 default:
                     fprintf(stderr, "Status da tarefa %d não abarcado, abortando.\n", next_task->id);
@@ -142,7 +142,7 @@ int task_switch (task_t *task) {
 void task_exit (int exit_code) {
     _currTask->status = TERMINADA;
 
-    if ( &task_dispatcher == _currTask ) {
+    if ( _currTask == &task_dispatcher ) {
         task_switch(&_mainTask);
     } else {
         task_yield();
