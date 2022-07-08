@@ -47,7 +47,11 @@ void dispatcher () {
                     break;
                 case TERMINADA:
                     --userTasks;
-                    queue_remove( (queue_t **) &tasks, (queue_t *)next_task );
+                    free(next_task->context.uc_stack.ss_sp);
+                    if ( queue_remove( (queue_t **) &tasks, (queue_t *)next_task ) < 0 ) {
+                        fprintf(stderr, "Erro ao remover elemento %d da lista, abortando.\n", next_task->id);
+                        exit(0);
+                    }
                     break;
                 default:
                     fprintf(stderr, "Status da tarefa %d não abarcado, abortando.\n", next_task->id);
@@ -83,7 +87,10 @@ void ppos_init () {
 
     task_dispatcher.status = RODANDO;
     task_dispatcher.preemptable = 0;
-    queue_remove( (queue_t **) &tasks, (queue_t *) &task_dispatcher);
+    if ( queue_remove( (queue_t **) &tasks, (queue_t *)&task_dispatcher ) < 0 ) {
+        fprintf(stderr, "Erro ao remover dispatcher da lista, abortando.\n");
+        exit(0);
+    }
     --userTasks;
 
     /* desativa o buffer da saida padrao (stdout), usado pela função printf */
@@ -120,7 +127,10 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 
     makecontext (&task->context, (void*)start_func, 1, arg) ;
 
-    queue_append( (queue_t **)&tasks, (queue_t *) task);
+    if ( queue_append( (queue_t **)&tasks, (queue_t *) task) < 0 ) {
+        fprintf(stderr, "Erro ao inserir elemento %d na lista, abortando.\n", task->id);
+        exit(0);
+    }
 
     userTasks += 1;
     return task->id;
