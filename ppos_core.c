@@ -6,6 +6,7 @@
 #include "queue.h"
 #define STACKSIZE 64*1024
 #define ERROR_STATUS -5
+#define ALPHA -1
 
 enum status_t {PRONTA = 1, RODANDO, SUSPENSA, TERMINADA};
 
@@ -17,22 +18,20 @@ task_t task_dispatcher;
 task_t* tasks;
 
 task_t* scheduler() {
-    task_t* dripless = NULL;
-    int low_drip = 19;
-    task_t* aux = tasks->prev;
+    task_t* dripless = tasks;
+    task_t* aux = tasks;
     do 
     {
         aux = aux->next;
-        if ((aux->di_drip + aux->st_drip) < low_drip) {
-            low_drip = aux->di_drip;
+        if (aux->di_drip < dripless->di_drip) {
             dripless = aux;
         } else {
-            aux->di_drip += -1;
+            aux->di_drip += ALPHA;
         }
 
-    } while (aux != tasks->prev);
+    } while (aux != tasks);
 
-    dripless->di_drip = 0;
+    dripless->di_drip = dripless->st_drip;
 
     return dripless;
 }
@@ -188,10 +187,12 @@ void task_yield () {
 
 void task_setprio (task_t *task, int prio) {
     if (!task) {
+        _currTask->di_drip = prio;
         _currTask->st_drip = prio;  
         return;
     }
 
+    task->di_drip = prio;
     task->st_drip = prio;
 }
 
