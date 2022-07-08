@@ -17,9 +17,24 @@ task_t task_dispatcher;
 task_t* tasks;
 
 task_t* scheduler() {
-    task_t* oldTask = tasks;
-    tasks = tasks->next;
-    return oldTask;
+    task_t* dripless = NULL;
+    int low_drip = 19;
+    task_t* aux = tasks->prev;
+    do 
+    {
+        aux = aux->next;
+        if ((aux->di_drip + aux->st_drip) < low_drip) {
+            low_drip = aux->di_drip;
+            dripless = aux;
+        } else {
+            aux->di_drip += -1;
+        }
+
+    } while (aux != tasks->prev);
+
+    dripless->di_drip = 0;
+
+    return dripless;
 }
 
 void dispatcher () {
@@ -73,6 +88,8 @@ void ppos_init () {
     _mainTask.preemptable = 0;
     _mainTask.status = RODANDO;
     _mainTask.id = 0;
+    _mainTask.st_drip = 0;
+    _mainTask.di_drip = 0;
     
     // Redundante, porém escolhi manter consistência
     getcontext(&_mainTask.context);
@@ -105,6 +122,8 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     task->preemptable = 1;
     task->status = PRONTA;
     task->id = ++_id;
+    task->st_drip = 0;
+    task->di_drip = 0;
 
     // alocamos uma pilha para a task
     char *stack ;
@@ -165,4 +184,19 @@ int task_id () {
 
 void task_yield () {
     task_switch(&task_dispatcher);
+}
+
+void task_setprio (task_t *task, int prio) {
+    if (!task) {
+        _currTask->st_drip = prio;  
+        return;
+    }
+
+    task->st_drip = prio;
+}
+
+int task_getprio (task_t *task) {
+    if (!task) return _currTask->st_drip;
+
+    return task->st_drip;
 }
