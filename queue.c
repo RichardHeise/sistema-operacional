@@ -3,16 +3,21 @@
 #include "queue.h"
 #include <stdio.h>
 
-#define ERRO_FILA_VAZIA -1
-#define ERRO_ELEMENTO_NULO -2
-#define ERRO_ELEMENTO_NAO_ISOLADO -3 
-#define ERRO_ELEMENTO_NAO_ENCONTRADO -4
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+#define EMPTY_QUEUE -1
+#define NULL_ELEMENT -2
+#define NOT_ISOLATED -3 
+#define NOT_FOUND -4
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int queue_size (queue_t *queue) {
     // se a fila não aponta para nada, temos tamanho 0
     if (!queue) return 0;
 
     int size = 0;
+
     // percorremos a fila e contamos os elementos
     queue_t *q_aux = queue;
     do  {
@@ -22,6 +27,8 @@ int queue_size (queue_t *queue) {
 
     return size;
 }
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 void queue_print (char *name, queue_t *queue, void print_elem (void*) ) {
     // se a fila ta vazia printa o vetor vazio
@@ -49,13 +56,15 @@ void queue_print (char *name, queue_t *queue, void print_elem (void*) ) {
     printf("]\n");
 }
 
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
 int queue_append (queue_t **queue, queue_t *elem) {
     // checagem de erros
     // elemento deve existir
-    if (!elem) return ERRO_ELEMENTO_NULO;
+    if (!elem) return NULL_ELEMENT;
 
     // elemento deve ser isolado, isto é, não pode apontar para outros elementos
-    if (elem->next || elem->prev) return ERRO_ELEMENTO_NAO_ISOLADO;
+    if (elem->next || elem->prev) return NOT_ISOLATED;
 
     // se a fila é vazia, simplesmente fazemos o início apontar para o elemento
     if ( !(*queue) ) {
@@ -74,12 +83,14 @@ int queue_append (queue_t **queue, queue_t *elem) {
     return 0;
 }
 
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
 int queue_remove (queue_t **queue, queue_t *elem) {
     // checagem de erros
 
     // se a fila não existe não podemos remover um elemento
-    if (!(*queue)) return ERRO_FILA_VAZIA;
-    if (!elem) return ERRO_ELEMENTO_NULO;
+    if (!(*queue)) return EMPTY_QUEUE;
+    if (!elem) return NULL_ELEMENT;
 
     queue_t* q_aux = (*queue);
 
@@ -101,8 +112,8 @@ int queue_remove (queue_t **queue, queue_t *elem) {
             q_aux = q_aux->next;
         while (q_aux != elem && q_aux != (*queue));
 
-        // se não encontramos o elemento na fila, temos um erro
-        if (q_aux != elem) return ERRO_ELEMENTO_NAO_ENCONTRADO;
+        // se não encontramos o elemento na fila, temos um não isolado
+        if (q_aux != elem) return NOT_FOUND;
     }
     
     // operação-se os ponteiros

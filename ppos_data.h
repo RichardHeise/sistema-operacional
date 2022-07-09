@@ -12,14 +12,14 @@
 // Estrutura que define um Task Control Block (TCB)
 typedef struct task_t
 {
-  struct task_t *prev, *next ;		// ponteiros para usar em filas
-  int id ;				// identificador da tarefa
-  ucontext_t context ;			// contexto armazenado da tarefa
-  short status ;			// pronta, rodando, suspensa, ...
-  short preemptable ;	// pode ser preemptada?
-  short st_drip ;	// equivalente a nice em UNIX, estático
-  short di_drip ; // prioridade dinâmica
-   // ... (outros campos serão adicionados mais tarde)
+  struct task_t *prev, *next ;  // ponteiros para usar em filas
+  int id ;				              // identificador da tarefa
+  ucontext_t context ;			    // contexto armazenado da tarefa
+  short status ;			          // pronta, rodando, suspensa, ...
+  short preemptable ;	          // pode ser preemptada?
+  short st_drip ;	              // equivalente a nice em UNIX, estático
+  short di_drip ;               // prioridade dinâmica
+  // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 
 // estrutura que define um semáforo
