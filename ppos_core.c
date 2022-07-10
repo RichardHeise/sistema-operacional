@@ -21,11 +21,11 @@ enum status_t {READY = 1, RUNNING, ASLEEP, FINISHED};
 task_t* currTask = NULL;  // Tarefa atual
 task_t mainTask;          // Tarefa da main
 
-int _id = 0;               // Contador de identificador de tarefas
-int userTasks = 0;         // Número de tarefas de usuário ativas
+int _id = 0;              // Contador de identificador de tarefas
+int userTasks = 0;        // Número de tarefas de usuário ativas
 
-task_t* tasks = NULL;      // Fila de tarefas
-task_t task_dispatcher;    // Tarefa do despachante
+task_t* tasks = NULL;     // Fila de tarefas
+task_t task_dispatcher;   // Tarefa do despachante
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
