@@ -21,6 +21,7 @@ typedef struct task_t
   short preemptable ;	          // pode ser preemptada?
   short st_drip ;	              // equivalente a nice em UNIX, estático
   short di_drip ;               // prioridade dinâmica
+  short quantum ;               // quantum de cada tarefa
   // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 

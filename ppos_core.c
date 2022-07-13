@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <sys/time.h>
 #include "ppos.h"
 #include "queue.h"
 
@@ -12,20 +14,24 @@
 #define ERROR_QUEUE -6     // Erro genérico da fila
 #define ERROR_STACK -7     // Erro genérico da pilha
 #define ALPHA -1           // Fator de envelhecimento (linear)
+#define QUANTUM 20         // Quantum padrão de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 // Enum dos status
 enum status_t {READY = 1, RUNNING, ASLEEP, FINISHED}; 
 
-task_t* currTask = NULL;  // Tarefa atual
-task_t mainTask;          // Tarefa da main
+struct sigaction action;     // Estrutura que define um tratador de sinal
+struct itimerval timer;      // Estrutura de inicialização to timer
 
-int _id = 0;              // Contador de identificador de tarefas
-int userTasks = 0;        // Número de tarefas de usuário ativas
+task_t* currTask = NULL;     // Tarefa atual
+task_t mainTask;             // Tarefa da main
 
-task_t* tasks = NULL;     // Fila de tarefas
-task_t task_dispatcher;   // Tarefa do despachante
+unsigned int _id = 0;        // Contador de identificador de tarefas
+unsigned int userTasks = 0;  // Número de tarefas de usuário ativas
+
+task_t* tasks = NULL;        // Fila de tarefas
+task_t task_dispatcher;      // Tarefa do despachante
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
@@ -80,6 +86,9 @@ void dispatcher () {
             // Voltando ao dispatcher, trata a tarefa de acordo com seu estado
             switch (next_task->status) {
                 case READY:
+
+                    next_task->quantum = QUANTUM;
+
                     break;
                 case RUNNING:
                     break;
@@ -113,7 +122,38 @@ void dispatcher () {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
+void chronos() {
+    if (!currTask->preemptable) return;
+
+    if (currTask->quantum) {
+        --currTask->quantum;
+    } else {
+        currTask->status = READY;
+        task_switch(&task_dispatcher);
+    }
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
 void ppos_init () {
+
+    // Registra a ação para o sinal de timer SIGALRM
+    action.sa_handler = chronos ;
+    sigemptyset (&action.sa_mask) ;
+    action.sa_flags = 0 ;
+    if (sigaction (SIGALRM, &action, 0) < 0) {
+        perror("Erro em sigaction: ");
+        exit(1);
+    }
+
+    timer.it_value.tv_usec = 1000;     // Primeiro disparo, em micro-segundos
+    timer.it_interval.tv_usec = 1000;  // Disparos subsequentes, em micro-segundos
+
+    // Arma o temporizador ITIMER_REAL
+    if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
+        perror ("Erro em setitimer: ");
+        exit(1);
+    }
 
     // Definindo variáveis da tarefa principal
     mainTask.prev = NULL;
@@ -123,6 +163,7 @@ void ppos_init () {
     mainTask.id = 0;
     mainTask.st_drip = 0;
     mainTask.di_drip = 0;
+    mainTask.quantum = QUANTUM;
     
     // Redundante, porém escolhi manter consistência
     getcontext(&mainTask.context);
@@ -148,7 +189,6 @@ void ppos_init () {
     }
     --userTasks;
 
-
     /* desativa o buffer da saida padrao (stdout), usado pela função printf */
     setvbuf (stdout, 0, _IONBF, 0) ;
 }
@@ -165,6 +205,7 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     task->id = ++_id;
     task->st_drip = 0;
     task->di_drip = 0;
+    task->quantum = QUANTUM;
 
     // Alocamos uma pilha para a task
     char *stack ;
