@@ -125,7 +125,7 @@ void dispatcher () {
 void chronos() {
     if (!currTask->preemptable) return;
 
-    if (currTask->quantum) {
+    if (currTask->quantum > 0) {
         --currTask->quantum;
     } else {
         currTask->status = READY;
@@ -147,7 +147,9 @@ void ppos_init () {
     }
 
     timer.it_value.tv_usec = 1000;     // Primeiro disparo, em micro-segundos
+    timer.it_value.tv_sec = 0;
     timer.it_interval.tv_usec = 1000;  // Disparos subsequentes, em micro-segundos
+    timer.it_interval.tv_sec = 0;
 
     // Arma o temporizador ITIMER_REAL
     if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
