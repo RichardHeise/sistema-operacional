@@ -59,6 +59,7 @@ task_t* scheduler() {
 
     } while (aux != tasks);
 
+    tasks = dripless;
     // Resetamos o drip dinâmico da tarefa escolhida
     dripless->di_drip = dripless->st_drip;
 
@@ -138,19 +139,19 @@ void chronos() {
 void ppos_init () {
 
     // Registra a ação para o sinal de timer SIGALRM
-    action.sa_handler = chronos ;
-    sigemptyset (&action.sa_mask) ;
-    action.sa_flags = 0 ;
-    if (sigaction (SIGALRM, &action, 0) < 0) {
-        perror("Erro em sigaction: ");
-        exit(1);
-    }
+    //action.sa_handler = chronos ;
+    //sigemptyset (&action.sa_mask) ;
+    //action.sa_flags = 0 ;
+    //if (sigaction (SIGALRM, &action, 0) < 0) {
+    //    perror("Erro em sigaction: ");
+    //    exit(1);
+    //}
 
-    timer.it_value.tv_usec = 1000;     // Primeiro disparo, em micro-segundos
+    /*timer.it_value.tv_usec = 1000;     // Primeiro disparo, em micro-segundos
     timer.it_value.tv_sec = 0;
     timer.it_interval.tv_usec = 1000;  // Disparos subsequentes, em micro-segundos
     timer.it_interval.tv_sec = 0;
-
+	*/
     // Arma o temporizador ITIMER_REAL
     if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
         perror ("Erro em setitimer: ");
