@@ -1,4 +1,4 @@
-// GRR20191053 Richard Fernando Heise Ferreira  
+// GRR20191053 Richard Fernando Heise Ferreira
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,57 +9,69 @@
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-#define STACKSIZE 64*1024  // Tamanho da pilha
-#define ERROR_STATUS -5    // Erro caso o status da tarefa não existe
-#define ERROR_QUEUE -6     // Erro genérico da fila
-#define ERROR_STACK -7     // Erro genérico da pilha
-#define ALPHA -1           // Fator de envelhecimento (linear)
-#define QUANTUM 20         // Quantum padrão de cada tarefa
+#define STACKSIZE 64 * 1024 // Tamanho da pilha
+#define ERROR_STATUS -5     // Erro caso o status da tarefa não existe
+#define ERROR_QUEUE -6      // Erro genérico da fila
+#define ERROR_STACK -7      // Erro genérico da pilha
+#define ALPHA -1            // Fator de envelhecimento (linear) {
+#define QUANTUM 20          // Quantum padrão de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 // Enum dos status
-enum status_t {READY = 1, RUNNING, ASLEEP, FINISHED}; 
+enum status_t {
 
-struct sigaction action;     // Estrutura que define um tratador de sinal
-struct itimerval timer;      // Estrutura de inicialização to timer
+    READY = 1,
+    RUNNING,
+    ASLEEP,
+    FINISHED
 
-task_t* currTask = NULL;     // Tarefa atual
-task_t mainTask;             // Tarefa da main
+};
 
-unsigned int _id = 0;        // Contador de identificador de tarefas
-unsigned int userTasks = 0;  // Número de tarefas de usuário ativas
+struct sigaction action;      // Estrutura que define um tratador de sinal
+struct itimerval timer;       // Estrutura de inicialização to timer
 
-task_t* tasks = NULL;        // Fila de tarefas
-task_t task_dispatcher;      // Tarefa do despachante
+task_t *currTask = NULL;      // Tarefa atual
+task_t mainTask;              // Tarefa da main
+
+unsigned int _id = 0;         // Contador de identificador de tarefas
+unsigned int userTasks = 0;   // Número de tarefas de usuário ativas
+
+task_t *tasks = NULL;         // Fila de tarefas
+task_t task_dispatcher;       // Tarefa do despachante
+
+unsigned int ticks = 0;       // Ticks do relógio
+unsigned int upTime = 0;      // Tempo ativo de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-task_t* scheduler() {
+task_t *scheduler() {
+
     // A tarefa com menos drip é a prioritária
-    task_t* dripless = tasks;
-    task_t* aux = tasks;
+    task_t *dripless = tasks;
+    task_t *aux = tasks;
 
     // Percorremos a lista de tarefas
     do {
+    
         aux = aux->next;
 
         // A tarefa com menor drip é escolhida
         if (aux->di_drip < dripless->di_drip) {
-
+        
+            dripless->di_drip += ALPHA; 
             dripless = aux;
 
-        } else {
-
+        }
+        else {
+        
             // Se a tarefa escolhida não é a com menor drip
-            // adicionamos o fator de envelhecimento 
+            // adicionamos o fator de envelhecimento
             aux->di_drip += ALPHA;
-
         }
 
     } while (aux != tasks);
 
-    tasks = dripless;
     // Resetamos o drip dinâmico da tarefa escolhida
     dripless->di_drip = dripless->st_drip;
 
@@ -88,6 +100,8 @@ void dispatcher () {
             switch (next_task->status) {
                 case READY:
 
+                    task_dispatcher.activs++;
+                    next_task->activs++;
                     next_task->quantum = QUANTUM;
 
                     break;
@@ -124,11 +138,19 @@ void dispatcher () {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 void chronos() {
-    if (!currTask->preemptable) return;
+
+    ticks++;
+
+    if (!currTask->preemptable) {
+        return;
+    }
 
     if (currTask->quantum > 0) {
+    
         --currTask->quantum;
-    } else {
+    }
+    else {
+    
         currTask->status = READY;
         task_switch(&task_dispatcher);
     }
@@ -136,25 +158,28 @@ void chronos() {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void ppos_init () {
+void ppos_init() {
+
 
     // Registra a ação para o sinal de timer SIGALRM
-    //action.sa_handler = chronos ;
-    //sigemptyset (&action.sa_mask) ;
-    //action.sa_flags = 0 ;
-    //if (sigaction (SIGALRM, &action, 0) < 0) {
-    //    perror("Erro em sigaction: ");
-    //    exit(1);
-    //}
+    action.sa_handler = chronos;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
+    if (sigaction(SIGALRM, &action, 0) < 0) {
+    
+        perror("Erro em sigaction: ");
+        exit(1);
+    }
 
-    /*timer.it_value.tv_usec = 1000;     // Primeiro disparo, em micro-segundos
+    timer.it_value.tv_usec = 1000; // Primeiro disparo, em micro-segundos
     timer.it_value.tv_sec = 0;
-    timer.it_interval.tv_usec = 1000;  // Disparos subsequentes, em micro-segundos
+    timer.it_interval.tv_usec = 1000; // Disparos subsequentes, em micro-segundos
     timer.it_interval.tv_sec = 0;
-	*/
+
     // Arma o temporizador ITIMER_REAL
-    if (setitimer (ITIMER_REAL, &timer, 0) < 0) {
-        perror ("Erro em setitimer: ");
+    if (setitimer(ITIMER_REAL, &timer, 0) < 0) {
+    
+        perror("Erro em setitimer: ");
         exit(1);
     }
 
@@ -167,7 +192,9 @@ void ppos_init () {
     mainTask.st_drip = 0;
     mainTask.di_drip = 0;
     mainTask.quantum = QUANTUM;
-    
+    mainTask.exeTime = systime();
+    mainTask.procTime = 0;
+
     // Redundante, porém escolhi manter consistência
     getcontext(&mainTask.context);
 
@@ -180,25 +207,25 @@ void ppos_init () {
     // Criando o despachante
     task_create(&task_dispatcher, dispatcher, NULL);
 
-
     // Ajustes pós-criação genérica
     task_dispatcher.status = RUNNING;
     task_dispatcher.preemptable = 0;
-    if ( queue_remove( (queue_t **) &tasks, (queue_t *)&task_dispatcher ) < 0 ) {
+    if (queue_remove((queue_t **)&tasks, (queue_t *)&task_dispatcher) < 0) {
+    
 
         fprintf(stderr, "Erro ao remover dispatcher da lista, abortando.\n");
         exit(ERROR_QUEUE);
-
     }
     --userTasks;
 
-    /* desativa o buffer da saida padrao (stdout), usado pela função printf */
-    setvbuf (stdout, 0, _IONBF, 0) ;
+    /* desativa o buffer da saida padrao (stdout) {, usado pela função printf */
+    setvbuf(stdout, 0, _IONBF, 0);
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-int task_create (task_t *task, void (*start_func)(void *), void *arg) {
+int task_create(task_t *task, void (*start_func)(void *), void *arg) {
+
 
     // Definimos as variáveis da tarefa
     task->prev = NULL;
@@ -209,31 +236,35 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
     task->st_drip = 0;
     task->di_drip = 0;
     task->quantum = QUANTUM;
+    task->exeTime = systime();
+    task->procTime = 0;
+    task->activs = 0;
 
     // Alocamos uma pilha para a task
-    char *stack ;
+    char *stack;
 
-    getcontext (&task->context);
+    getcontext(&task->context);
 
-    stack = malloc (STACKSIZE);
+    stack = malloc(STACKSIZE);
     if (stack) {
-
+    
         task->context.uc_stack.ss_sp = stack;
         task->context.uc_stack.ss_size = STACKSIZE;
         task->context.uc_stack.ss_flags = 0;
         task->context.uc_link = 0;
 
-    } else {
+    }
+    else {
 
-        perror ("Erro na criação da pilha: ");
-        exit (ERROR_STACK);
-
+        perror("Erro na criação da pilha: ");
+        exit(ERROR_STACK);
     }
 
-    makecontext (&task->context, (void*)start_func, 1, arg);
+    makecontext(&task->context, (void *)start_func, 1, arg);
 
     // Adiciona a tarefa na fila
-    if ( queue_append( (queue_t **)&tasks, (queue_t *) task) < 0 ) {
+    if (queue_append((queue_t **)&tasks, (queue_t *)task) < 0) {
+    
         fprintf(stderr, "Erro ao inserir elemento %d na lista, abortando.\n", task->id);
         exit(ERROR_QUEUE);
     }
@@ -244,10 +275,17 @@ int task_create (task_t *task, void (*start_func)(void *), void *arg) {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-int task_switch (task_t *task) {
-    // A task atual precisa ser guardada antes de ser reatribuída
+int task_switch(task_t *task) {
 
-    ucontext_t* oldTask = &currTask->context;
+
+    if (currTask->status != FINISHED) {
+        currTask->procTime += (systime() - upTime);
+    }
+
+    upTime = systime();
+
+    // A task atual precisa ser guardada antes de ser reatribuída
+    ucontext_t *oldTask = &currTask->context;
     currTask = task;
     currTask->status = RUNNING;
 
@@ -258,38 +296,52 @@ int task_switch (task_t *task) {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void task_exit (int exit_code) {
+void task_exit(int exit_code) {
+
     // Status da tarefa agora é terminada
     currTask->status = FINISHED;
 
+    currTask->procTime += (systime() - upTime);
+    currTask->exeTime = (systime() - currTask->exeTime);
+
+    printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", 
+    currTask->id, currTask->exeTime, currTask->procTime, currTask->activs);
+
     // Se o despachante terminou voltamos para a main
-    if ( currTask == &task_dispatcher ) {
+    if (currTask == &task_dispatcher) {
+    
         task_switch(&mainTask);
-    } else {
+    }
+    else {
+    
         task_yield();
     }
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-int task_id () {
+int task_id() { 
     return currTask->id;
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void task_yield () {
+void task_yield() { 
+
+    task_dispatcher.activs++;
     task_switch(&task_dispatcher);
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void task_setprio (task_t *task, int prio) {
+void task_setprio(task_t *task, int prio) { 
+
     // Quando atribuímos o drip estático
     // precisamos atribuir o dinâmico também
     if (!task) {
+    
         currTask->di_drip = prio;
-        currTask->st_drip = prio;  
+        currTask->st_drip = prio;
         return;
     }
 
@@ -299,8 +351,16 @@ void task_setprio (task_t *task, int prio) {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-int task_getprio (task_t *task) {
-    if (!task) return currTask->st_drip;
+int task_getprio(task_t *task) {
 
+    if (!task) {
+        return currTask->st_drip;
+    }
     return task->st_drip;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+unsigned int systime () { 
+    return ticks;
 }
