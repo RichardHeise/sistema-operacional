@@ -28,28 +28,30 @@ enum status_t {
 
 };
 
-struct sigaction action;      // Estrutura que define um tratador de sinal
-struct itimerval timer;       // Estrutura de inicialização to timer
+struct sigaction action;              // Estrutura que define um tratador de sinal
+struct itimerval timer;               // Estrutura de inicialização to timer
 
-task_t *currTask = NULL;      // Tarefa atual
-task_t mainTask;              // Tarefa da main
+task_t *currTask = NULL;              // Tarefa atual
+task_t mainTask;                      // Tarefa da main
 
-unsigned int _id = 0;         // Contador de identificador de tarefas
-unsigned int userTasks = 0;   // Número de tarefas de usuário ativas
+unsigned int _id = 0;                 // Contador de identificador de tarefas
+unsigned int activeTasks = 0;         // Número de tarefas de usuário ativas
 
-task_t *tasks = NULL;         // Fila de tarefas
-task_t task_dispatcher;       // Tarefa do despachante
+task_t *ready_tasks = NULL;           // Fila de tarefas prontas
+task_t task_dispatcher;               // Tarefa do despachante
 
-unsigned int ticks = 0;       // Ticks do relógio
-unsigned int upTime = 0;      // Tempo ativo de cada tarefa
+unsigned int ticks = 0;               // Ticks do relógio
+unsigned int upTime = 0;              // Tempo ativo de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 task_t *scheduler() {
 
+    if (!ready_tasks) return NULL;
+
     // A tarefa com menos drip é a prioritária
-    task_t *dripless = tasks;
-    task_t *aux = tasks;
+    task_t *dripless = ready_tasks;
+    task_t *aux = ready_tasks;
 
     // Percorremos a lista de tarefas
     do {
@@ -70,7 +72,7 @@ task_t *scheduler() {
             aux->di_drip += ALPHA;
         }
 
-    } while (aux != tasks);
+    } while (aux != ready_tasks);
 
     // Resetamos o drip dinâmico da tarefa escolhida
     dripless->di_drip = dripless->st_drip;
@@ -85,7 +87,7 @@ void dispatcher () {
     task_t* next_task = NULL;
 
     // Enquanto houverem tarefas de usuário
-    while ( userTasks ) {
+    while ( activeTasks ) {
 
         // Escolhe a próxima tarefa a executar
         next_task = scheduler();
@@ -112,9 +114,9 @@ void dispatcher () {
                 case FINISHED:
 
                     // Removemos a tarefa terminada da fila e ajustamos o número total de tarefas ativas
-                    --userTasks;
+                    --activeTasks;
                     free(next_task->context.uc_stack.ss_sp);
-                    if ( queue_remove( (queue_t **) &tasks, (queue_t *)next_task ) < 0 ) {
+                    if ( queue_remove( (queue_t **) &ready_tasks, (queue_t *)next_task ) < 0 ) {
 
                         fprintf(stderr, "Erro ao remover elemento %d da lista, abortando.\n", next_task->id);
                         exit(ERROR_QUEUE);
@@ -158,8 +160,7 @@ void chronos() {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void ppos_init() {
-
+static void big_bang() {
 
     // Registra a ação para o sinal de timer SIGALRM
     action.sa_handler = chronos;
@@ -182,50 +183,41 @@ void ppos_init() {
         perror("Erro em setitimer: ");
         exit(1);
     }
+}
 
-    // Definindo variáveis da tarefa principal
-    mainTask.prev = NULL;
-    mainTask.next = NULL;
-    mainTask.preemptable = 0;
-    mainTask.status = RUNNING;
-    mainTask.id = 0;
-    mainTask.st_drip = 0;
-    mainTask.di_drip = 0;
-    mainTask.quantum = QUANTUM;
-    mainTask.exeTime = systime();
-    mainTask.procTime = 0;
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-    // Redundante, porém escolhi manter consistência
-    getcontext(&mainTask.context);
+void ppos_init() {
 
-    // Não criamos uma pilha porque a main já possui uma,
-    // afinal ela é uma tarefa
+    task_create(&mainTask, NULL, NULL);
 
     // Atual é a main
     currTask = &mainTask;
-
+    
     // Criando o despachante
     task_create(&task_dispatcher, dispatcher, NULL);
 
     // Ajustes pós-criação genérica
     task_dispatcher.status = RUNNING;
     task_dispatcher.preemptable = 0;
-    if (queue_remove((queue_t **)&tasks, (queue_t *)&task_dispatcher) < 0) {
+    if (queue_remove((queue_t **)&ready_tasks, (queue_t *)&task_dispatcher) < 0) {
     
-
         fprintf(stderr, "Erro ao remover dispatcher da lista, abortando.\n");
         exit(ERROR_QUEUE);
     }
-    --userTasks;
+    --activeTasks;
+
+    big_bang();
 
     /* desativa o buffer da saida padrao (stdout) {, usado pela função printf */
     setvbuf(stdout, 0, _IONBF, 0);
+
+    task_yield();
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int task_create(task_t *task, void (*start_func)(void *), void *arg) {
-
 
     // Definimos as variáveis da tarefa
     task->prev = NULL;
@@ -239,6 +231,8 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     task->exeTime = systime();
     task->procTime = 0;
     task->activs = 0;
+    task->exit_code = -1;
+    task->sus_tasks = NULL;
 
     // Alocamos uma pilha para a task
     char *stack;
@@ -263,12 +257,12 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     makecontext(&task->context, (void *)start_func, 1, arg);
 
     // Adiciona a tarefa na fila
-    if (queue_append((queue_t **)&tasks, (queue_t *)task) < 0) {
+    if (queue_append((queue_t **)&ready_tasks, (queue_t *)task) < 0) {
     
         fprintf(stderr, "Erro ao inserir elemento %d na lista, abortando.\n", task->id);
         exit(ERROR_QUEUE);
     }
-    userTasks += 1;
+    activeTasks += 1;
 
     return task->id;
 }
@@ -276,7 +270,6 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int task_switch(task_t *task) {
-
 
     if (currTask->status != FINISHED) {
         currTask->procTime += (systime() - upTime);
@@ -303,18 +296,25 @@ void task_exit(int exit_code) {
 
     currTask->procTime += (systime() - upTime);
     currTask->exeTime = (systime() - currTask->exeTime);
+    currTask->exit_code = exit_code;
 
     printf("Task %d exit: execution time %d ms, processor time %d ms, %d activations\n", 
     currTask->id, currTask->exeTime, currTask->procTime, currTask->activs);
 
-    // Se o despachante terminou voltamos para a main
-    if (currTask == &task_dispatcher) {
+    task_t* sus_task = currTask->sus_tasks;
+
+    while ( sus_task ) {
+        task_resume(sus_task, &currTask->sus_tasks);
+        sus_task = currTask->sus_tasks;
+    }
+
+    // Se a tarefa atual não é o despachante, passa a ser
+    if (currTask != &task_dispatcher) {
     
-        task_switch(&mainTask);
+        task_switch(&task_dispatcher);
     }
     else {
-    
-        task_yield();
+        exit(0);
     }
 }
 
@@ -363,4 +363,55 @@ int task_getprio(task_t *task) {
 
 unsigned int systime () { 
     return ticks;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+void task_suspend (task_t **queue) {
+
+    if ( queue_remove((queue_t **)&ready_tasks, (queue_t *)currTask) < 0 ) {
+
+        fprintf(stderr, "Erro ao remover tarefa na fila %p, abortando.\n", queue);
+        exit(ERROR_QUEUE);
+    }
+
+    currTask->status = ASLEEP;
+    if (queue_append((queue_t **)queue, (queue_t *)currTask) < 0) {
+    
+        fprintf(stderr, "Erro ao adicionar tarefa na fila %p, abortando.\n", queue);
+        exit(ERROR_QUEUE);
+    }
+
+    task_yield();
+
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+void task_resume (task_t *task, task_t **queue) {
+
+    if (queue_remove((queue_t **)queue, (queue_t *)task) < 0) {
+    
+        fprintf(stderr, "Erro ao remover tarefa da fila %p, abortando.\n", queue);
+        exit(ERROR_QUEUE);
+    }
+
+    task->status = READY;
+    if (queue_append((queue_t **)&ready_tasks, (queue_t *)task) < 0) {
+    
+        fprintf(stderr, "Erro ao adicionar tarefa na fila de prontas (%p), abortando.\n", ready_tasks);
+        exit(ERROR_QUEUE);
+    }
+
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int task_join (task_t *task) {
+
+    if (!task || task->status == FINISHED) return -1;
+
+    task_suspend(&task->sus_tasks);
+
+    return task->exit_code;
 }

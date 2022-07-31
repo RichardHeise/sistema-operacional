@@ -25,6 +25,8 @@ typedef struct task_t
   unsigned int exeTime ;        // tempo de execução
   unsigned int procTime ;       // tempo de processador
   unsigned int activs ;         // número de ativações
+  unsigned int exit_code ;      // código de saida
+  struct task_t *sus_tasks ;    // fila de tarefas suspensas por esta tarefa
   // ... (outros campos serão adicionados mais tarde)
 } task_t ;
 
