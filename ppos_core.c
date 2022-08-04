@@ -38,6 +38,7 @@ unsigned int _id = 0;                 // Contador de identificador de tarefas
 unsigned int activeTasks = 0;         // Número de tarefas de usuário ativas
 
 task_t *ready_tasks = NULL;           // Fila de tarefas prontas
+task_t *bed = NULL;
 task_t task_dispatcher;               // Tarefa do despachante
 
 unsigned int ticks = 0;               // Ticks do relógio
@@ -84,10 +85,22 @@ task_t *scheduler() {
 
 void dispatcher () {
 
-    task_t* next_task = NULL;
+    task_t *next_task = NULL;
 
     // Enquanto houverem tarefas de usuário
     while ( activeTasks ) {
+
+        if (bed) {
+            task_t *rooster = bed->prev; 
+            int napping = queue_size( (queue_t *) bed );
+
+            for (int i = 0; i < napping; i++) {
+                rooster = bed->next;
+                if (rooster->alarm <= systime()) {
+                    task_resume(rooster, &bed);
+                } 
+            }
+        }
 
         // Escolhe a próxima tarefa a executar
         next_task = scheduler();
@@ -233,6 +246,7 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     task->activs = 0;
     task->exit_code = -1;
     task->sus_tasks = NULL;
+    task->alarm = 0;
 
     // Alocamos uma pilha para a task
     char *stack;
@@ -414,4 +428,12 @@ int task_join (task_t *task) {
     task_suspend(&task->sus_tasks);
 
     return task->exit_code;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+void task_sleep (int t) {
+    currTask->alarm = systime() + t;
+    task_suspend(&bed);
+    task_yield();
 }
