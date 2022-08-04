@@ -91,13 +91,14 @@ void dispatcher () {
     while ( activeTasks ) {
 
         if (bed) {
-            task_t *rooster = bed->prev; 
+            task_t *rooster = bed; 
             int napping = queue_size( (queue_t *) bed );
 
             for (int i = 0; i < napping; i++) {
-                rooster = bed->next;
+                rooster = rooster->next;
                 if (rooster->alarm <= systime()) {
                     task_resume(rooster, &bed);
+                    rooster = bed;
                 } 
             }
         }
