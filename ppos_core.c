@@ -9,12 +9,12 @@
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-#define STACKSIZE 64 * 1024 // Tamanho da pilha
-#define ERROR_STATUS -5     // Erro caso o status da tarefa não existe
-#define ERROR_QUEUE -6      // Erro genérico da fila
-#define ERROR_STACK -7      // Erro genérico da pilha
-#define ALPHA -1            // Fator de envelhecimento (linear) {
-#define QUANTUM 20          // Quantum padrão de cada tarefa
+#define STACKSIZE 128 * 1024 // Tamanho da pilha
+#define ERROR_STATUS -5      // Erro caso o status da tarefa não existe
+#define ERROR_QUEUE -6       // Erro genérico da fila
+#define ERROR_STACK -7       // Erro genérico da pilha
+#define ALPHA -1             // Fator de envelhecimento (linear) {
+#define QUANTUM 20           // Quantum padrão de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
@@ -46,62 +46,83 @@ unsigned int upTime = 0;              // Tempo ativo de cada tarefa
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-task_t *scheduler() {
+static void dispatcher();    // Despachante
+static task_t *scheduler();  // Agendador de prioridade
+static void big_bang();      // Definição do relógio do sistema
+static void chronos();       // Controlador de quantum
+static void rooster();       // Acordador de tarefas dormentes
 
-    if (!ready_tasks) return NULL;
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-    // A tarefa com menos drip é a prioritária
-    task_t *dripless = ready_tasks;
-    task_t *aux = ready_tasks;
+void ppos_init() {
 
-    // Percorremos a lista de tarefas
-    do {
+    // Criando a main task
+    task_create(&mainTask, NULL, NULL);
+
+    // Atual é a main
+    currTask = &mainTask;
     
-        aux = aux->next;
+    // Criando o despachante
+    task_create(&task_dispatcher, dispatcher, NULL);
 
-        // A tarefa com menor drip é escolhida
-        if (aux->di_drip < dripless->di_drip) {
-        
-            dripless->di_drip += ALPHA; 
-            dripless = aux;
+    // Ajustes pós-criação genérica
+    task_dispatcher.status = RUNNING;
+    task_dispatcher.preemptable = 0;
+    if (queue_remove((queue_t **)&ready_tasks, (queue_t *)&task_dispatcher) < 0) {
+    
+        fprintf(stderr, "Erro ao remover dispatcher da lista, abortando.\n");
+        exit(ERROR_QUEUE);
+    }
+    --activeTasks;
 
-        }
-        else {
-        
-            // Se a tarefa escolhida não é a com menor drip
-            // adicionamos o fator de envelhecimento
-            aux->di_drip += ALPHA;
-        }
+    /* desativa o buffer da saida padrao (stdout), usado pela função printf */
+    setvbuf(stdout, 0, _IONBF, 0);
 
-    } while (aux != ready_tasks);
+    // Definindo o relógio
+    big_bang();
 
-    // Resetamos o drip dinâmico da tarefa escolhida
-    dripless->di_drip = dripless->st_drip;
-
-    return dripless;
+    // Emtregando o controle ao dispatcher
+    task_yield();
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void dispatcher () {
+static void rooster() {
+    
+    // Se temos tasks dormindo
+    if (bed) {
+
+        // Olhamos para o primeiro da filta
+        task_t *rooster = bed; 
+
+        // Pegamos o tamanho da fila
+        int napping = queue_size( (queue_t *) bed );
+
+        // Varremos a fila acordando as tarefas dormentes
+        for (int i = 0; i < napping; i++) {
+
+            rooster = rooster->next;
+            if (rooster->alarm <= systime()) { // Se é hora de acordar
+
+                // Acorda
+                task_resume(rooster, &bed);  
+                rooster = bed;
+            } 
+        }
+    }
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+static void dispatcher () {
 
     task_t *next_task = NULL;
 
     // Enquanto houverem tarefas de usuário
     while ( activeTasks ) {
 
-        if (bed) {
-            task_t *rooster = bed; 
-            int napping = queue_size( (queue_t *) bed );
-
-            for (int i = 0; i < napping; i++) {
-                rooster = rooster->next;
-                if (rooster->alarm <= systime()) {
-                    task_resume(rooster, &bed);
-                    rooster = bed;
-                } 
-            }
-        }
+        // O galo acorda tarefas
+        rooster();
 
         // Escolhe a próxima tarefa a executar
         next_task = scheduler();
@@ -153,7 +174,44 @@ void dispatcher () {
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
-void chronos() {
+static task_t *scheduler() {
+
+    if (!ready_tasks) return NULL;
+
+    // A tarefa com menos drip é a prioritária
+    task_t *dripless = ready_tasks;
+    task_t *aux = ready_tasks;
+
+    // Percorremos a lista de tarefas
+    do {
+    
+        aux = aux->next;
+
+        // A tarefa com menor drip é escolhida
+        if (aux->di_drip < dripless->di_drip) {
+        
+            dripless->di_drip += ALPHA; 
+            dripless = aux;
+
+        }
+        else {
+        
+            // Se a tarefa escolhida não é a com menor drip
+            // adicionamos o fator de envelhecimento
+            aux->di_drip += ALPHA;
+        }
+
+    } while (aux != ready_tasks);
+
+    // Resetamos o drip dinâmico da tarefa escolhida
+    dripless->di_drip = dripless->st_drip;
+
+    return dripless;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+static void chronos() {
 
     ticks++;
 
@@ -197,36 +255,6 @@ static void big_bang() {
         perror("Erro em setitimer: ");
         exit(1);
     }
-}
-
-/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
-
-void ppos_init() {
-
-    task_create(&mainTask, NULL, NULL);
-
-    // Atual é a main
-    currTask = &mainTask;
-    
-    // Criando o despachante
-    task_create(&task_dispatcher, dispatcher, NULL);
-
-    // Ajustes pós-criação genérica
-    task_dispatcher.status = RUNNING;
-    task_dispatcher.preemptable = 0;
-    if (queue_remove((queue_t **)&ready_tasks, (queue_t *)&task_dispatcher) < 0) {
-    
-        fprintf(stderr, "Erro ao remover dispatcher da lista, abortando.\n");
-        exit(ERROR_QUEUE);
-    }
-    --activeTasks;
-
-    big_bang();
-
-    /* desativa o buffer da saida padrao (stdout) {, usado pela função printf */
-    setvbuf(stdout, 0, _IONBF, 0);
-
-    task_yield();
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
