@@ -2,84 +2,72 @@
 // Prof. Carlos A. Maziero, DINF UFPR
 // Versão 1.4 -- Janeiro de 2022
 
-// Teste do task_sleep()
+// Teste de semáforos (light)
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include "ppos.h"
 
-task_t Pang, Peng, Ping, Pong, Pung ;
+task_t      a1, a2, b1, b2;
+semaphore_t s1, s2 ;
 
-// corpo das threads
-void Body (void * arg)
+// corpo da thread A
+void TaskA (void * arg)
 {
-   int i, timeSleep, timeBefore, timeAfter ;
-   char *status ;
-
-   printf ("%5d ms: %s: inicio\n", systime(), (char *) arg) ;
-   for (i=0; i<20; i++)
+   int i ;
+   for (i=0; i<10; i++)
    {
-      // sorteia tempo entre 0 e 2000 ms (2s), em saltos de 100 ms
-      timeSleep = 100 * (random () % 21) ;
-
-      // informa o quanto vai dormir
-      printf ("%5d ms: %s vai dormir %d ms\n",
-              systime(), (char *) arg, timeSleep) ;
-
-      // registra tempo antes e depois de dormir
-      timeBefore = systime () ;
-      task_sleep (timeSleep) ;
-      timeAfter  = systime () ;
-
-      // verifica se dormiu o intervalo especificado
-      status = (timeAfter - timeBefore) == timeSleep ? "ok" : "ERROR" ;
-
-      // informa o quanto efetivamente dormiu
-      printf ("%5d ms: %s dormiu     %d ms (%s)\n", systime(),
-              (char *) arg, timeAfter - timeBefore, status) ;
+      sem_down (&s1) ;
+      printf ("%s zig (%d)\n", (char *) arg, i) ;
+      task_sleep (1000) ;
+      sem_up (&s2) ;
    }
-   printf ("%5d ms: %s: fim\n", systime(), (char *) arg) ;
+   task_exit (0) ;
+}
+
+// corpo da thread B
+void TaskB (void * arg)
+{
+   int i ;
+   for (i=0; i<10; i++)
+   {
+      sem_down (&s2) ;
+      printf ("%s zag (%d)\n", (char *) arg, i) ;
+      task_sleep (1000) ;
+      sem_up (&s1) ;
+   }
    task_exit (0) ;
 }
 
 int main (int argc, char *argv[])
 {
-   // inicializacao do SO
+   printf ("main: inicio\n") ;
+
    ppos_init () ;
 
-   printf ("%5d ms: main: inicio\n", systime()) ;
+   // cria semaforos
+   sem_create (&s1, 1) ;
+   sem_create (&s2, 0) ;
 
-   // lanca as tarefas
-   task_create (&Pang, Body, "    Pang") ;
-   task_create (&Peng, Body, "        Peng") ;
-   task_create (&Ping, Body, "            Ping") ;
-   task_create (&Pong, Body, "                Pong") ;
-   task_create (&Pung, Body, "                    Pung") ;
+   // cria tarefas
+   task_create (&a1, TaskA, "A1") ;
+   task_create (&a2, TaskA, "    A2") ;
+   task_create (&b1, TaskB, "                         B1") ;
+   task_create (&b2, TaskB, "                             B2") ;
 
-   // aguarda tarefas concluirem
-   printf ("%5d ms: main: espera Pang...\n", systime()) ;
-   task_join (&Pang) ;
-   printf ("%5d ms: main: Pang acabou\n", systime()) ;
+   // aguarda a1 encerrar
+   task_join (&a1) ;
 
-   printf ("%5d ms: main: espera Peng...\n", systime()) ;
-   task_join (&Peng) ;
-   printf ("%5d ms: main: Peng acabou\n", systime()) ;
+   // destroi semaforos
+   sem_destroy (&s1) ;
+   sem_destroy (&s2) ;
 
-   printf ("%5d ms: main: espera Ping...\n", systime()) ;
-   task_join (&Ping) ;
-   printf ("%5d ms: main: Ping acabou\n", systime()) ;
+   // aguarda a2, b1 e b2 encerrarem
+   task_join (&a2) ;
+   task_join (&b1) ;
+   task_join (&b2) ;
 
-   printf ("%5d ms: main: espera Pong...\n", systime()) ;
-   task_join (&Pong) ;
-   printf ("%5d ms: main: Pong acabou\n", systime()) ;
-
-   printf ("%5d ms: main: espera Pung...\n", systime()) ;
-   task_join (&Pung) ;
-   printf ("%5d ms: main: Pung acabou\n", systime()) ;
-
-   // main encerra
-   printf ("%5d ms: main: fim\n", systime()) ;
+   printf ("main: fim\n") ;
    task_exit (0) ;
 
    exit (0) ;

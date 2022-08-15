@@ -44,6 +44,8 @@ task_t task_dispatcher;               // Tarefa do despachante
 unsigned int ticks = 0;               // Ticks do relógio
 unsigned int upTime = 0;              // Tempo ativo de cada tarefa
 
+int lock = 0;
+
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 static void dispatcher();    // Despachante
@@ -51,6 +53,8 @@ static task_t *scheduler();  // Agendador de prioridade
 static void big_bang();      // Definição do relógio do sistema
 static void chronos();       // Controlador de quantum
 static void rooster();       // Acordador de tarefas dormentes
+void enter_cs (int *lock);   // Entra na zona crítica
+void leave_cs (int *lock);   // Sai da zona crítica
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
@@ -466,3 +470,75 @@ void task_sleep (int t) {
     task_suspend(&bed);
     task_yield();
 }
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int sem_create (semaphore_t *s, int value) {
+    s->counter = value;
+    s->jam = NULL;
+
+    return 0;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int sem_down (semaphore_t *s) {
+    if (!s) return -1;
+
+    enter_cs(&lock);
+    s->counter = s->counter - 1;
+    leave_cs(&lock);
+
+    if (s->counter < 0) {
+        task_suspend(&s->jam);
+    }
+
+    return 1;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int sem_up (semaphore_t *s) {
+    if (!s) return -1;
+
+    enter_cs(&lock);
+    s->counter = s->counter + 1;
+    leave_cs(&lock);
+
+    if (s->counter <= 0) {
+        task_t* task = s->jam;
+        task_resume(task, &s->jam);
+    }   
+
+    return 1;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int sem_destroy (semaphore_t *s) {
+    if (!s) return -1;
+
+    task_t* task = s->jam;
+    for (int i = queue_size((queue_t *)s->jam); i > 0; i--) {
+        task_resume(task, &s->jam);
+        task = s->jam;
+    }
+    
+    s = NULL;
+
+    return 1;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+void enter_cs (int *lock) {
+  // atomic OR (Intel macro for GCC)
+  while (__sync_fetch_and_or (lock, 1)) ;   // busy waiting
+}
+ 
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+void leave_cs (int *lock) {
+  (*lock) = 0 ;
+}
+ 
