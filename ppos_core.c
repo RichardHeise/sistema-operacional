@@ -141,8 +141,6 @@ static void dispatcher () {
             switch (next_task->status) {
                 case READY:
 
-                    task_dispatcher.activs++;
-                    next_task->activs++;
                     next_task->quantum = QUANTUM;
 
                     break;
@@ -270,7 +268,7 @@ int task_create(task_t *task, void (*start_func)(void *), void *arg) {
     task->next = NULL;
     task->preemptable = 1;
     task->status = READY;
-    task->id = ++_id;
+    task->id = _id++;
     task->st_drip = 0;
     task->di_drip = 0;
     task->quantum = QUANTUM;
@@ -329,6 +327,7 @@ int task_switch(task_t *task) {
     currTask = task;
     currTask->status = RUNNING;
 
+    task->activs++;
     swapcontext(oldTask, &task->context);
 
     return 0;
@@ -375,7 +374,6 @@ int task_id() {
 
 void task_yield() { 
 
-    task_dispatcher.activs++;
     task_switch(&task_dispatcher);
 }
 
