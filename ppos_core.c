@@ -518,14 +518,12 @@ int sem_up (semaphore_t *s) {
 int sem_destroy (semaphore_t *s) {
     if (!s) return -1;
 
-    task_t* task = s->jam;
-    for (int i = queue_size((queue_t *)s->jam); i > 0; i--) {
-        task_resume(task, &s->jam);
-        task = s->jam;
+    while (s->jam) {
+        sem_up(s);
     }
     
     s = NULL;
-
+    
     return 1;
 }
 
