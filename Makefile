@@ -4,10 +4,12 @@ CFLAGS  = -Wall -g
 CC = gcc 
 
 #-----------------------------------------------------------------------------#
-all : pingpong
+all : pingpong-prodcons
 
-run: pingpong
-	./pingpong
+run: pingpong-prodcons
+	./pingpong-prodcons
+
+pingpong-prodcons: pingpong-prodcons.o queue.o ppos_core.o
 
 pingpong: queue.o ppos_core.o pingpong.o
 

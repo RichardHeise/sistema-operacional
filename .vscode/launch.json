@@ -8,7 +8,7 @@
         "name": "(gdb) Launch",
         "type": "cppdbg",
         "request": "launch",
-        "program": "${workspaceFolder}/pingpong",
+        "program": "${workspaceFolder}/pingpong-prodcons",
         // "args": ,
         "stopAtEntry": false,
         "cwd": "${workspaceFolder}",
