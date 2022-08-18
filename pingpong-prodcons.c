@@ -6,9 +6,16 @@
 int buffer[100];
 unsigned int size = 0;
 
+task_t produtorTask1;
+task_t produtorTask2;
+task_t produtorTask3;
+task_t consumidorTask1;
+task_t consumidorTask2;
+
 semaphore_t s_vaga;
 semaphore_t s_buffer;
 semaphore_t s_item;
+
 int item;
 
 void produtor() {
@@ -51,14 +58,7 @@ int main() {
     sem_create(&s_vaga, 2);
     sem_create(&s_buffer, 5);
     sem_create(&s_item, 2);
-
-    task_t produtorTask1;
-    task_t produtorTask2;
-    task_t produtorTask3;
-
-    task_t consumidorTask1;
-    task_t consumidorTask2;
-
+    
     task_create(&produtorTask1, produtor, "p1");
     task_create(&produtorTask2, produtor, "p2");
     task_create(&produtorTask3, produtor, "p3");
@@ -67,11 +67,13 @@ int main() {
     task_create(&consumidorTask2, consumidor, "c2");
 
     task_join(&produtorTask1);
+    task_join(&consumidorTask1);
+
     task_join(&produtorTask2);
+    task_join(&consumidorTask2);
+    
     task_join(&produtorTask3);
 
-    task_join(&consumidorTask1);
-    task_join(&consumidorTask2);
 
     task_exit(0);
 

@@ -190,18 +190,17 @@ static task_t *scheduler() {
         aux = aux->next;
 
         // A tarefa com menor drip é escolhida
-        if (aux->di_drip < dripless->di_drip) {
-        
-            dripless->di_drip += ALPHA; 
+        if (aux->di_drip < dripless->di_drip)
             dripless = aux;
 
-        }
-        else {
+    } while (aux != ready_tasks);
+
+    // Percorremos a lista de tarefas
+    do {
         
-            // Se a tarefa escolhida não é a com menor drip
-            // adicionamos o fator de envelhecimento
-            aux->di_drip += ALPHA;
-        }
+        // Aging
+        aux->st_drip += ALPHA;
+        aux = aux->next;
 
     } while (aux != ready_tasks);
 
@@ -442,6 +441,8 @@ void task_resume (task_t *task, task_t **queue) {
     }
 
     task->status = READY;
+    task->quantum = QUANTUM;
+    
     if (queue_append((queue_t **)&ready_tasks, (queue_t *)task) < 0) {
     
         fprintf(stderr, "Erro ao adicionar tarefa na fila de prontas (%p), abortando.\n", ready_tasks);
