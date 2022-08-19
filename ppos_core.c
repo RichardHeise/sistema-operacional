@@ -482,9 +482,9 @@ int sem_create (semaphore_t *s, int value) {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int sem_down (semaphore_t *s) {
+    enter_cs(&lock);
     if (!s) return -1;
 
-    enter_cs(&lock);
     s->counter = s->counter - 1;
 
     if (s->counter < 0) {
@@ -500,15 +500,15 @@ int sem_down (semaphore_t *s) {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int sem_up (semaphore_t *s) {
+    enter_cs(&lock);
     if (!s) return -1;
 
-    enter_cs(&lock);
     s->counter = s->counter + 1;
 
     if (s->counter <= 0) {
         task_t* task = s->jam;
-        leave_cs(&lock);
         task_resume(task, &s->jam);
+        leave_cs(&lock);
         return 1;
     }   
     leave_cs(&lock);

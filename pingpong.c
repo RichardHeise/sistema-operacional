@@ -19,7 +19,7 @@ void TaskA (void * arg)
    {
       sem_down (&s1) ;
       printf ("%s zig (%d)\n", (char *) arg, i) ;
-      task_sleep (1000) ;
+      // task_sleep (1000) ;
       sem_up (&s2) ;
    }
    task_exit (0) ;
@@ -33,7 +33,7 @@ void TaskB (void * arg)
    {
       sem_down (&s2) ;
       printf ("%s zag (%d)\n", (char *) arg, i) ;
-      task_sleep (1000) ;
+      // task_sleep (1000) ;
       sem_up (&s1) ;
    }
    task_exit (0) ;
