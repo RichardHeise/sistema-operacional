@@ -486,11 +486,13 @@ int sem_down (semaphore_t *s) {
 
     enter_cs(&lock);
     s->counter = s->counter - 1;
-    leave_cs(&lock);
 
     if (s->counter < 0) {
+        leave_cs(&lock);
         task_suspend(&s->jam);
+        return 1;
     }
+    leave_cs(&lock);
 
     return 1;
 }
@@ -502,12 +504,14 @@ int sem_up (semaphore_t *s) {
 
     enter_cs(&lock);
     s->counter = s->counter + 1;
-    leave_cs(&lock);
 
     if (s->counter <= 0) {
         task_t* task = s->jam;
+        leave_cs(&lock);
         task_resume(task, &s->jam);
+        return 1;
     }   
+    leave_cs(&lock);
 
     return 1;
 }
