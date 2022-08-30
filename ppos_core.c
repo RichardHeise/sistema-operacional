@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <string.h>
 #include "ppos.h"
 #include "queue.h"
 
@@ -48,6 +49,10 @@ int lock = 0;
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
+
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
 static void dispatcher();    // Despachante
 static task_t *scheduler();  // Agendador de prioridade
 static void big_bang();      // Definição do relógio do sistema
@@ -56,6 +61,8 @@ static void rooster();       // Acordador de tarefas dormentes
 void enter_cs (int *lock);   // Entra na zona crítica
 void leave_cs (int *lock);   // Sai da zona crítica
 
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++++++++++ Início das funções sobre tarefas  ++++++++++++++++++ */
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 void ppos_init() {
@@ -469,10 +476,18 @@ void task_sleep (int t) {
     task_suspend(&bed);
     task_yield();
 }
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++++++++++ Fim das funções sobre tarefas  +++++++++++++++++++++ */
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
+/* ------------------------------------------------------------------------ */
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++++++++++ Início das funções sobre semáforos +++++++++++++++++ */
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int sem_create (semaphore_t *s, int value) {
+
     s->counter = value;
     s->jam = NULL;
 
@@ -494,7 +509,7 @@ int sem_down (semaphore_t *s) {
     }
     leave_cs(&lock);
 
-    return 1;
+    return 0;
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
@@ -513,7 +528,7 @@ int sem_up (semaphore_t *s) {
     }   
     leave_cs(&lock);
 
-    return 1;
+    return 0;
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
@@ -527,7 +542,7 @@ int sem_destroy (semaphore_t *s) {
     
     s = NULL;
     
-    return 1;
+    return 0;
 }
 
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
@@ -542,4 +557,104 @@ void enter_cs (int *lock) {
 void leave_cs (int *lock) {
   (*lock) = 0 ;
 }
- 
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++++++++++++ Fim das funções sobre semáforos ++++++++++++++++++ */
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+/* ------------------------------------------------------------------------ */
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++ Início das funções sobre tfilas de mensagens +++++++++++++++ */
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int mqueue_create (mqueue_t *queue, int max_msgs, int msg_size) {
+    if (!queue) return -1;
+
+    sem_create(&queue->sendSem, 1);
+    sem_create(&queue->recvSem, 0);
+    sem_create(&queue->buffSem, max_msgs);
+
+    queue->size = msg_size;
+    queue->buffer = NULL;
+
+    return 0;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int mqueue_send (mqueue_t *queue, void *msg) {
+    if (!queue || !msg) return -1;
+
+    sem_down(&queue->sendSem);
+    sem_down(&queue->buffSem);
+
+    buffer_t elem;
+    elem.next = NULL;
+    elem.prev = NULL;
+    elem.value = malloc(queue->size);
+    
+    memcpy(elem.value, msg, queue->size);
+
+    if ( queue_append((queue_t **) &queue->buffer, (queue_t *) &elem) ) {
+        fprintf(stderr, "Erro ao adicionar item ao buffer.\n");
+        exit(ERROR_QUEUE);
+    }
+
+    sem_up(&queue->buffSem);
+    sem_up(&queue->recvSem);
+
+    return 0;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int mqueue_recv (mqueue_t *queue, void *msg) {
+    if (!queue || !msg) return -1;
+
+    sem_down(&queue->recvSem);
+    sem_down(&queue->buffSem);
+
+    memcpy(msg, queue->buffer, queue->size);
+
+    if ( queue_remove((queue_t **) &queue->buffer, (queue_t *) queue->buffer) ) {
+        fprintf(stderr, "Erro ao remover item do buffer.\n");
+        exit(ERROR_QUEUE);
+    }
+
+    sem_up(&queue->buffSem);
+    sem_up(&queue->sendSem);
+
+    return 0;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int mqueue_destroy (mqueue_t *queue) {
+
+    if (!queue) return -1;
+    
+    if (sem_destroy(&queue->buffSem) < 0)
+        return -1;
+    if (sem_destroy(&queue->recvSem) < 0)
+        return -1;
+    if (sem_destroy(&queue->sendSem) < 0)
+        return -1;
+
+    queue->buffer = NULL;
+
+    return 0;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+
+int mqueue_msgs (mqueue_t *queue) {
+
+    if (!queue) return -1;
+    
+    return queue->recvSem.counter;
+}
+
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
+/* +++++++++++++ Fim das funções sobre tfilas de mensagens ++++++++++++++++ */
+/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */

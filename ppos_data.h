@@ -50,10 +50,21 @@ typedef struct
   // preencher quando necessário
 } barrier_t ;
 
+// Buffer para as filas de mensagem
+typedef struct buffer_s
+{
+  struct buffer_t *prev, *next;
+  void* value;
+} buffer_t ;
+
 // estrutura que define uma fila de mensagens
 typedef struct
 {
-  // preencher quando necessário
+  int size;
+  semaphore_t sendSem;
+  semaphore_t recvSem;
+  semaphore_t buffSem;
+  buffer_t* buffer;
 } mqueue_t ;
 
 #endif
