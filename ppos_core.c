@@ -490,6 +490,7 @@ int sem_create (semaphore_t *s, int value) {
 
     s->counter = value;
     s->jam = NULL;
+    s->lit = 1;
 
     return 0;
 }
@@ -498,7 +499,10 @@ int sem_create (semaphore_t *s, int value) {
 
 int sem_down (semaphore_t *s) {
     enter_cs(&lock);
-    if (!s) return -1;
+    if (!s->lit) {
+        leave_cs(&lock);
+        return -1;
+    }
 
     s->counter = s->counter - 1;
 
@@ -516,7 +520,10 @@ int sem_down (semaphore_t *s) {
 
 int sem_up (semaphore_t *s) {
     enter_cs(&lock);
-    if (!s) return -1;
+    if (!s->lit) {
+        leave_cs(&lock);
+        return -1;
+    }
 
     s->counter = s->counter + 1;
 
@@ -534,14 +541,24 @@ int sem_up (semaphore_t *s) {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int sem_destroy (semaphore_t *s) {
-    if (!s) return -1;
+    enter_cs(&lock);
+    if (!s->lit) {
+        return -1;
+    }
 
     while (s->jam) {
-        sem_up(s);
+        task_t* aux = s->jam;
+        queue_remove((queue_t **) &s->jam, (queue_t *) aux);
+        aux->quantum = QUANTUM;
+        aux->status = READY;
+        queue_append((queue_t **) &ready_tasks, (queue_t *) aux);
     }
     
+    s->lit = 0;
     s = NULL;
-    
+
+    leave_cs(&lock);
+
     return 0;
 }
 
@@ -586,17 +603,18 @@ int mqueue_create (mqueue_t *queue, int max_msgs, int msg_size) {
 int mqueue_send (mqueue_t *queue, void *msg) {
     if (!queue || !msg) return -1;
 
-    sem_down(&queue->sendSem);
-    sem_down(&queue->buffSem);
+    if(sem_down(&queue->sendSem)<0)
+        return -1;
+    if(sem_down(&queue->buffSem)<0)
+        return -1;
 
-    buffer_t elem;
-    elem.next = NULL;
-    elem.prev = NULL;
-    elem.value = malloc(queue->size);
+    buffer_t* elem = malloc(sizeof(buffer_t));
+    elem->next = NULL;
+    elem->prev = NULL;
     
-    memcpy(elem.value, msg, queue->size);
+    bcopy(msg, &elem->value, queue->size);
 
-    if ( queue_append((queue_t **) &queue->buffer, (queue_t *) &elem) ) {
+    if ( queue_append((queue_t **) &queue->buffer, (queue_t *) elem) ) {
         fprintf(stderr, "Erro ao adicionar item ao buffer.\n");
         exit(ERROR_QUEUE);
     }
@@ -612,11 +630,12 @@ int mqueue_send (mqueue_t *queue, void *msg) {
 int mqueue_recv (mqueue_t *queue, void *msg) {
     if (!queue || !msg) return -1;
 
-    sem_down(&queue->recvSem);
-    sem_down(&queue->buffSem);
+    if(sem_down(&queue->recvSem)<0)
+        return -1;
+    if(sem_down(&queue->buffSem)<0)
+        return -1;
 
-    memcpy(msg, queue->buffer, queue->size);
-
+    bcopy(&queue->buffer->value, msg, queue->size);
     if ( queue_remove((queue_t **) &queue->buffer, (queue_t *) queue->buffer) ) {
         fprintf(stderr, "Erro ao remover item do buffer.\n");
         exit(ERROR_QUEUE);
@@ -631,8 +650,11 @@ int mqueue_recv (mqueue_t *queue, void *msg) {
 /* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 int mqueue_destroy (mqueue_t *queue) {
-
     if (!queue) return -1;
+
+    while(queue->buffer) {
+        queue_remove((queue_t **) &queue->buffer, (queue_t *) queue->buffer);
+    }
     
     if (sem_destroy(&queue->buffSem) < 0)
         return -1;
@@ -641,7 +663,7 @@ int mqueue_destroy (mqueue_t *queue) {
     if (sem_destroy(&queue->sendSem) < 0)
         return -1;
 
-    queue->buffer = NULL;
+    free(queue->buffer);
 
     return 0;
 }
