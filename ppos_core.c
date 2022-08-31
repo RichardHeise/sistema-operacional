@@ -584,9 +584,9 @@ void leave_cs (int *lock) {
 int mqueue_create (mqueue_t *queue, int max_msgs, int msg_size) {
     if (!queue) return -1;
 
-    sem_create(&queue->sendSem, 1);
+    sem_create(&queue->buffSem, 1);
     sem_create(&queue->recvSem, 0);
-    sem_create(&queue->buffSem, max_msgs);
+    sem_create(&queue->sendSem, max_msgs);
 
     queue->size = msg_size;
     queue->buffer = NULL;
