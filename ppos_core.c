@@ -509,7 +509,7 @@ int sem_down (semaphore_t *s) {
     if (s->counter < 0) {
         leave_cs(&lock);
         task_suspend(&s->jam);
-        return 1;
+        return 0;
     }
     leave_cs(&lock);
 
@@ -531,7 +531,7 @@ int sem_up (semaphore_t *s) {
         task_t* task = s->jam;
         task_resume(task, &s->jam);
         leave_cs(&lock);
-        return 1;
+        return 0;
     }   
     leave_cs(&lock);
 
@@ -547,11 +547,7 @@ int sem_destroy (semaphore_t *s) {
     }
 
     while (s->jam) {
-        task_t* aux = s->jam;
-        queue_remove((queue_t **) &s->jam, (queue_t *) aux);
-        aux->quantum = QUANTUM;
-        aux->status = READY;
-        queue_append((queue_t **) &ready_tasks, (queue_t *) aux);
+        task_resume(s->jam, &s->jam);
     }
     
     s->lit = 0;
@@ -603,9 +599,9 @@ int mqueue_create (mqueue_t *queue, int max_msgs, int msg_size) {
 int mqueue_send (mqueue_t *queue, void *msg) {
     if (!queue || !msg) return -1;
 
-    if(sem_down(&queue->sendSem)<0)
+    if(sem_down(&queue->sendSem) < 0)
         return -1;
-    if(sem_down(&queue->buffSem)<0)
+    if(sem_down(&queue->buffSem) < 0)
         return -1;
 
     buffer_t* elem = malloc(sizeof(buffer_t));
@@ -619,8 +615,10 @@ int mqueue_send (mqueue_t *queue, void *msg) {
         exit(ERROR_QUEUE);
     }
 
-    sem_up(&queue->buffSem);
-    sem_up(&queue->recvSem);
+    if (sem_up(&queue->buffSem) < 0)
+        return -1;
+    if (sem_up(&queue->recvSem) < 0)
+        return -1;
 
     return 0;
 }
@@ -641,8 +639,10 @@ int mqueue_recv (mqueue_t *queue, void *msg) {
         exit(ERROR_QUEUE);
     }
 
-    sem_up(&queue->buffSem);
-    sem_up(&queue->sendSem);
+    if (sem_up(&queue->buffSem) < 0)
+        return -1;
+    if (sem_up(&queue->sendSem) < 0)
+        return -1;
 
     return 0;
 }
